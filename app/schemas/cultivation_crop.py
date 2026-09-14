@@ -37,6 +37,7 @@ class CropState(str, Enum):
     """Represents the current lifecycle state of a cultivated crop."""
 
     SELECTED = "selected"
+    CULTIVATING = "cultivating"
     PLANTED = "planted"
     GROWING = "growing"
     HARVESTED = "harvested"

@@ -11,6 +11,7 @@ from app.repositories import (
 )
 from app.schemas.cultivation_crop import (
     BaseCrop,
+    CropState,
     CultivationCrop,
     CultivationCropDocument,
     CultivationCropInput,
@@ -464,3 +465,27 @@ async def _get_intercropping_details(
     intercropping_id: str,
 ) -> IntercroppingDetailsDocument | None:
     return await intercropping_details_repository.get_document_by_id(intercropping_id)
+
+
+async def update_crop_state(
+    *,
+    user_id: str,
+    farm_id: str,
+    crop_id: str,
+    state: CropState,
+) -> bool:
+    await _ensure_farm_access(user_id=user_id, farm_id=farm_id)
+    return await cultivation_crop_repository.update_crop_state(
+        crop_id=crop_id, state=state
+    )
+
+
+async def _update_crop_state(
+    *,
+    crop_id: str,
+    state: CropState,
+) -> bool:
+    return await cultivation_crop_repository.update_crop_state(
+        crop_id=crop_id, state=state
+    )
+

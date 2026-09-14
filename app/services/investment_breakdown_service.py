@@ -21,6 +21,19 @@ async def get_investment_breakdown(
     )
 
 
+async def get_investment_breakdown_by_crop(
+    *, crop_id: str, user_id: str
+) -> InvestmentBreakdown | None:
+    if not await cultivation_crop_service.has_crop_access(
+        user_id=user_id, crop_id=crop_id
+    ):
+        return None
+    return await investment_breakdown_repository.get_by_crop_id(
+        crop_id=crop_id,
+        language=PersistenceLanguage.USER_LANGUAGE,
+    )
+
+
 async def delete_investment_breakdown(*, breakdown_id: str, user_id: str) -> bool:
     crop_id = await investment_breakdown_repository.get_crop_id_by_id(breakdown_id)
     if not crop_id or not await cultivation_crop_service.has_crop_access(

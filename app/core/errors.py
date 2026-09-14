@@ -18,6 +18,9 @@ class ErrorCode(StrEnum):
     MESSAGE_NOT_FOUND = "message_not_found"
     CROP_RECOMMENDATION_NOT_FOUND = "crop_recommendation_not_found"
     CULTIVATION_CROP_NOT_FOUND = "cultivation_crop_not_found"
+    CULTIVATION_TASK_NOT_FOUND = "cultivation_task_not_found"
+    INVESTMENT_BREAKDOWN_NOT_FOUND = "investment_breakdown_not_found"
+    AGRICULTURAL_INPUT_NOT_FOUND = "agricultural_input_not_found"
     INTERCROPPING_CULTIVATION_NOT_FOUND = "intercropping_cultivation_not_found"
     DEVICE_REGISTRATION_NOT_FOUND = "device_registration_not_found"
     WEATHER_DATA_NOT_FOUND = "weather_data_not_found"
@@ -244,3 +247,31 @@ class WeatherDataNotFound(NotFoundError):
             "Weather data not found.",
             code=ErrorCode.WEATHER_DATA_NOT_FOUND,
         )
+
+
+class CultivationTaskNotFound(NotFoundError):
+    def __init__(self, task_id: str) -> None:
+        super().__init__(
+            "Cultivation task not found.",
+            code=ErrorCode.CULTIVATION_TASK_NOT_FOUND,
+            context={"task_id": task_id},
+        )
+
+
+class InvestmentBreakdownNotFound(NotFoundError):
+    def __init__(self, identifier: str) -> None:
+        super().__init__(
+            "Investment breakdown not found.",
+            code=ErrorCode.INVESTMENT_BREAKDOWN_NOT_FOUND,
+            context={"identifier": identifier},
+        )
+
+
+class AgriculturalInputNotFound(NotFoundError):
+    def __init__(self, recommendation_id: str) -> None:
+        super().__init__(
+            "Agricultural input recommendation not found.",
+            code=ErrorCode.AGRICULTURAL_INPUT_NOT_FOUND,
+            context={"recommendation_id": recommendation_id},
+        )
+

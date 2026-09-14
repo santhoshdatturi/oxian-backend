@@ -1,11 +1,11 @@
-import time
+from datetime import datetime, timezone
 
 from app.infrastructure.database.collections import get_chats_collection
 from app.schemas.chat import Chat
 
 
 def _touch(chat: Chat) -> Chat:
-    now = time.time()
+    now = datetime.now(timezone.utc)
     updates = {"updated_at": now, "last_activity_at": now}
     return chat.model_copy(update=updates)
 
@@ -29,7 +29,7 @@ async def save(chat: Chat) -> Chat:
 
 
 async def clear_process_id(chat_id: str, user_id: str, process_id: str) -> bool:
-    now = time.time()
+    now = datetime.now(timezone.utc)
     result = await get_chats_collection().update_one(
         {"_id": chat_id, "user_id": user_id, "process_id": process_id},
         {

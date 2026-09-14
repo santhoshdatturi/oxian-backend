@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from app.infrastructure.database.collections import get_cultivation_crops_collection
 from app.schemas.cultivation_crop import (
     BaseCrop,
+    CropState,
     CultivationCrop,
     CultivationCropDocument,
     CultivationCropInputInvariantFields,
@@ -226,3 +227,17 @@ async def delete_all_by_intercropping(
         query["farm_id"] = farm_id
     result = await get_cultivation_crops_collection().delete_many(query)
     return result.deleted_count
+
+
+async def update_crop_state(crop_id: str, state: CropState) -> bool:
+    result = await get_cultivation_crops_collection().update_one(
+        {"_id": crop_id},
+        {
+            "$set": {
+                "crop_state": state.value,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+    return result.modified_count > 0
+

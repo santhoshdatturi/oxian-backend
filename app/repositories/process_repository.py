@@ -1,11 +1,11 @@
-import time
+from datetime import datetime, timezone
 
 from app.infrastructure.database.collections import get_processes_collection
 from app.schemas.process import Process
 
 
 def _touch(process: Process) -> Process:
-    return process.model_copy(update={"updated_at": time.time()})
+    return process.model_copy(update={"updated_at": datetime.now(timezone.utc)})
 
 
 async def create(process: Process) -> Process:

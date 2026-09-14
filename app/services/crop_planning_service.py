@@ -28,6 +28,7 @@ from app.schemas.agricultural_input_recommendation import (
     AgriculturalInputRecommendationDocument,
     AgriculturalInputRecommendationTranslatableFields,
 )
+from app.schemas.cultivation_crop import CropState
 from app.schemas.cultivation_task import (
     CultivationTaskDocument,
     CultivationTaskTranslatableFields,
@@ -401,6 +402,15 @@ async def _run_job(
 
         if not saved_breakdown or not saved_tasks:
             raise InternalOperationFailed("Agent did not complete the planning output.")
+
+        try:
+            await cultivation_crop_service._update_crop_state(
+                crop_id=crop_id, state=CropState.CULTIVATING
+            )
+        except Exception:
+            logger.exception(
+                "Failed to update crop state to CULTIVATING crop_id=%s", crop_id
+            )
 
         try:
             await process_repository.delete(process.id)

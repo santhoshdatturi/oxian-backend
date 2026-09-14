@@ -1,11 +1,11 @@
-import time
+from datetime import datetime, timezone
 
 from app.infrastructure.database.collections import get_user_prefs_collection
 from app.schemas.user_pref import UserPreference
 
 
 def _touch(preference: UserPreference) -> UserPreference:
-    return preference.model_copy(update={"updated_at": time.time()})
+    return preference.model_copy(update={"updated_at": datetime.now(timezone.utc)})
 
 
 async def get_by_user_id(user_id: str) -> UserPreference | None:
