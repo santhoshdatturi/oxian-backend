@@ -27,6 +27,14 @@ temp/
 .env
 .env/
 
+# Secrets and Credentials
+credentials/
+secrets/
+*-firebase-adminsdk-*.json
+*service-account*.json
+*.pem
+
+
 # Local test files
 dev/
 guides/
