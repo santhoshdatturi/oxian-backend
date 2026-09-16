@@ -182,6 +182,22 @@ async def get_cultivation_crop(
     )
 
 
+async def get_cultivation_crop_by_crop_id(
+    *,
+    user_id: str,
+    crop_id: str,
+) -> CultivationCrop | None:
+    farm_id = await cultivation_crop_repository.get_farm_id_by_id(crop_id)
+    if farm_id is None:
+        return None
+    await _ensure_farm_access(user_id=user_id, farm_id=farm_id)
+    return await cultivation_crop_repository.get_by_id(
+        crop_id=crop_id,
+        farm_id=farm_id,
+        language=PersistenceLanguage.USER_LANGUAGE,
+    )
+
+
 async def _get_cultivation_crop(
     *,
     farm_id: str,
@@ -488,4 +504,3 @@ async def _update_crop_state(
     return await cultivation_crop_repository.update_crop_state(
         crop_id=crop_id, state=state
     )
-

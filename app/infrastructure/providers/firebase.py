@@ -21,9 +21,7 @@ def _get_credentials() -> credentials.Certificate:
 
     path = path.strip()
     if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"Firebase service account file not found at: {path}"
-        )
+        raise FileNotFoundError(f"Firebase service account file not found at: {path}")
 
     return credentials.Certificate(path)
 
@@ -44,7 +42,7 @@ def initialize_firebase():
     Initialize Firebase Admin SDK once.
     Safe for multi-import environments.
     """
-    
+
     if not firebase_admin._apps:
         firebase_admin.initialize_app(
             _get_credentials(),

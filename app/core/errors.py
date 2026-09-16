@@ -42,6 +42,8 @@ class ErrorCode(StrEnum):
     NOTIFICATION_TARGET_INVALID = "notification_target_invalid"
     CROP_SELECTION_INVALID = "crop_selection_invalid"
     SELECTED_AREA_REQUIRED = "selected_area_required"
+    TASK_NOT_SKIPPABLE = "task_not_skippable"
+    TASK_ALREADY_COMPLETED = "task_already_completed"
 
 
 class AppError(Exception):
@@ -258,6 +260,24 @@ class CultivationTaskNotFound(NotFoundError):
         )
 
 
+class TaskNotSkippable(ValidationFailed):
+    def __init__(self, task_id: str) -> None:
+        super().__init__(
+            "Mandatory cultivation task cannot be skipped.",
+            code=ErrorCode.TASK_NOT_SKIPPABLE,
+            context={"task_id": task_id},
+        )
+
+
+class TaskAlreadyCompleted(ValidationFailed):
+    def __init__(self, task_id: str) -> None:
+        super().__init__(
+            "Cultivation task is already marked as completed.",
+            code=ErrorCode.TASK_ALREADY_COMPLETED,
+            context={"task_id": task_id},
+        )
+
+
 class InvestmentBreakdownNotFound(NotFoundError):
     def __init__(self, identifier: str) -> None:
         super().__init__(
@@ -274,4 +294,3 @@ class AgriculturalInputNotFound(NotFoundError):
             code=ErrorCode.AGRICULTURAL_INPUT_NOT_FOUND,
             context={"recommendation_id": recommendation_id},
         )
-

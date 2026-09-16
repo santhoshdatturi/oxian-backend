@@ -22,6 +22,9 @@ class InvestmentItem(BaseModel):
         ..., description="Purpose or description of the investment item."
     )
     estimated_cost: MoneyValue = Field(..., description="Estimated cost for this item.")
+    actual_cost: Optional[MoneyValue] = Field(
+        default=None, description="Actual cost spent for this item, if available."
+    )
 
     @field_validator("reason")
     def non_empty_reason(cls, v):
@@ -42,6 +45,12 @@ class Profitability(BaseModel):
     estimated_net_profit: MoneyValue = Field(..., description="Estimated profit.")
     break_even_yield: CropYield = Field(
         ..., description="Yield per area needed to break even."
+    )
+    actual_total_cost: Optional[MoneyValue] = Field(
+        default=None, description="Sum of actual costs spent to date."
+    )
+    actual_net_profit: Optional[MoneyValue] = Field(
+        default=None, description="Actual revenue minus actual costs to date."
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

@@ -240,4 +240,3 @@ async def update_crop_state(crop_id: str, state: CropState) -> bool:
         },
     )
     return result.modified_count > 0
-

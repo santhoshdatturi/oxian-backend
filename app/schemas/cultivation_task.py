@@ -193,3 +193,88 @@ class CultivationTaskDocument(
     """
     Represents a cultivation task document stored in the database, with translated fields.
     """
+
+
+class InvestmentActualCostInput(BaseModel):
+    """
+    Input model for recording actual spent cost on an investment line item.
+    """
+
+    category: InvestmentCategory = Field(
+        ..., description="Resource category of the investment item."
+    )
+    reason: str = Field(
+        ..., description="Description or reason matching the investment item."
+    )
+    actual_cost: MoneyValue = Field(
+        ..., description="Actual amount spent by the farmer."
+    )
+
+
+class CompleteTaskRequest(BaseModel):
+    """
+    Payload for marking a cultivation task as completed.
+    """
+
+    execution_notes: Optional[str] = Field(
+        default=None,
+        description="Farmer's personal observation or execution notes upon completing the task.",
+    )
+    actual_costs: list[InvestmentActualCostInput] = Field(
+        default_factory=list,
+        description="Optional actual costs spent during the execution of this task.",
+    )
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of completion. Defaults to current time if omitted.",
+    )
+
+
+class SkipTaskRequest(BaseModel):
+    """
+    Payload for skipping a skippable task.
+    """
+
+    reason: Optional[str] = Field(
+        default=None,
+        description="Reason why the farmer opted to skip this task.",
+    )
+
+
+class CreateCultivationTaskInput(BaseModel):
+    """
+    Payload for adding a custom/ad-hoc cultivation task to a crop's calendar.
+    """
+
+    task_name: str = Field(
+        ..., min_length=1, description="Title of the custom activity."
+    )
+    description: Optional[str] = Field(
+        default=None, description="Detailed instructions or description."
+    )
+    planned_start_date: date = Field(
+        ..., description="Scheduled start date for the task."
+    )
+    planned_end_date: date = Field(..., description="Scheduled end date for the task.")
+    priority: Priority = Field(
+        default=Priority.MEDIUM, description="Priority of the task."
+    )
+    skippable: bool = Field(
+        default=True,
+        description="Whether this custom task can be skipped.",
+    )
+    notes: Optional[str] = Field(
+        default=None, description="Optional notes or reminders."
+    )
+    investments: list[Investment] = Field(
+        default_factory=list,
+        description="Optional estimated investment line-items for this task.",
+    )
+
+    @field_validator("planned_end_date")
+    @classmethod
+    def validate_dates(cls, v: date, info: ValidationInfo) -> date:
+        start_date = info.data.get("planned_start_date")
+        if start_date and v < start_date:
+            raise ValueError("planned_end_date cannot be before planned_start_date")
+        return v

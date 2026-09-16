@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 
 from app.infrastructure.database.collections import get_investment_breakdowns_collection
-from app.schemas.generic_types import PersistenceLanguage
+from app.schemas.cultivation_task import InvestmentActualCostInput
+from app.schemas.generic_types import MoneyValue, PersistenceLanguage
 from app.schemas.investment_breakdown import (
     InvestmentBreakdown,
     InvestmentBreakdownDocument,
     InvestmentBreakdownInvariantFields,
     InvestmentBreakdownTranslatableFields,
+    InvestmentItem,
 )
 
 
@@ -136,3 +138,102 @@ async def delete_all_by_crop(crop_id: str) -> int:
         {"crop_id": crop_id}
     )
     return result.deleted_count
+
+
+async def record_actual_costs(
+    crop_id: str,
+    actual_costs: list[InvestmentActualCostInput],
+) -> InvestmentBreakdownDocument | None:
+    if not actual_costs:
+        return await get_document_by_crop_id(crop_id)
+
+    doc = await get_document_by_crop_id(crop_id)
+    if not doc:
+        return None
+
+    currency = doc.english.profitability.estimated_total_cost.currency
+
+    def _find_item(
+        items: list[InvestmentItem], cost: InvestmentActualCostInput
+    ) -> InvestmentItem | None:
+        cost_reason = cost.reason.strip().lower()
+        for it in items:
+            it_reason = it.reason.strip().lower()
+            if (
+                cost_reason == it_reason
+                or cost_reason in it_reason
+                or it_reason in cost_reason
+            ):
+                return it
+        for it in items:
+            if it.category == cost.category and it.actual_cost is None:
+                return it
+        return None
+
+    for cost_input in actual_costs:
+        # Update canonical english
+        target_en = _find_item(doc.english.investments, cost_input)
+        if target_en:
+            target_en.actual_cost = cost_input.actual_cost
+        else:
+            doc.english.investments.append(
+                InvestmentItem(
+                    category=cost_input.category,
+                    reason=cost_input.reason,
+                    estimated_cost=cost_input.actual_cost,
+                    actual_cost=cost_input.actual_cost,
+                )
+            )
+            # Add to estimated total cost to keep model validation consistent
+            doc.english.profitability.estimated_total_cost.amount += (
+                cost_input.actual_cost.amount
+            )
+            doc.english.profitability.estimated_net_profit.amount = (
+                doc.english.profitability.estimated_gross_income.amount
+                - doc.english.profitability.estimated_total_cost.amount
+            )
+
+        # Update user language
+        target_user = _find_item(doc.user_language.investments, cost_input)
+        if target_user:
+            target_user.actual_cost = cost_input.actual_cost
+        else:
+            doc.user_language.investments.append(
+                InvestmentItem(
+                    category=cost_input.category,
+                    reason=cost_input.reason,
+                    estimated_cost=cost_input.actual_cost,
+                    actual_cost=cost_input.actual_cost,
+                )
+            )
+            doc.user_language.profitability.estimated_total_cost.amount += (
+                cost_input.actual_cost.amount
+            )
+            doc.user_language.profitability.estimated_net_profit.amount = (
+                doc.user_language.profitability.estimated_gross_income.amount
+                - doc.user_language.profitability.estimated_total_cost.amount
+            )
+
+    # Recompute total actual cost
+    total_spent = sum(
+        item.actual_cost.amount
+        for item in doc.english.investments
+        if item.actual_cost is not None
+    )
+    actual_cost_money = MoneyValue(amount=total_spent, currency=currency)
+    doc.english.profitability.actual_total_cost = actual_cost_money
+    doc.user_language.profitability.actual_total_cost = actual_cost_money
+
+    # Recompute actual net profit
+    gross_income = doc.english.profitability.estimated_gross_income.amount
+    actual_profit = gross_income - total_spent
+    doc.english.profitability.actual_net_profit = MoneyValue(
+        amount=actual_profit, currency=currency
+    )
+    doc.user_language.profitability.actual_net_profit = MoneyValue(
+        amount=actual_profit, currency=currency
+    )
+
+    doc.updated_at = datetime.now(timezone.utc)
+    await save(doc)
+    return doc

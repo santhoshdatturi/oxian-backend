@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_current_user_id
@@ -17,7 +20,13 @@ from app.schemas.cultivation_crop import (
     IntercroppingCultivation,
     IntercroppingCultivationInput,
 )
-from app.schemas.cultivation_task import CultivationTask
+from app.schemas.cultivation_task import (
+    CompleteTaskRequest,
+    CreateCultivationTaskInput,
+    CultivationTask,
+    SkipTaskRequest,
+    TaskState,
+)
 from app.schemas.investment_breakdown import InvestmentBreakdown
 from app.services import (
     agricultural_input_service,
@@ -25,7 +34,11 @@ from app.services import (
     cultivation_task_service,
     investment_breakdown_service,
 )
-from app.services.crop_planning_service import CropPlan, generate_crop_plan
+from app.services.crop_planning_service import (
+    CropPlan,
+    generate_crop_plan,
+    plan_next_stage,
+)
 
 router = APIRouter(prefix="/cultivation-crops", tags=["Cultivation Crops"])
 
@@ -181,6 +194,49 @@ async def create_crop_plan(
     )
 
 
+@router.post(
+    "/farms/{farm_id}/{crop_id}/plan-next-stage",
+    response_model=CropPlan,
+    status_code=202,
+)
+async def create_crop_plan_next_stage_for_farm(
+    farm_id: str,
+    crop_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> CropPlan:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await plan_next_stage(
+        user_id=user_id,
+        farm_id=farm_id,
+        crop_id=crop_id,
+    )
+
+
+@router.post(
+    "/{crop_id}/plan-next-stage",
+    response_model=CropPlan,
+    status_code=202,
+)
+async def create_crop_plan_next_stage(
+    crop_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> CropPlan:
+    crop = await cultivation_crop_service.get_cultivation_crop_by_crop_id(
+        user_id=user_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await plan_next_stage(
+        user_id=user_id,
+        farm_id=crop.farm_id,
+        crop_id=crop_id,
+    )
+
+
 # --- Cultivation Tasks Query Endpoints ---
 
 
@@ -266,6 +322,156 @@ async def get_cultivation_task(
     return task
 
 
+@router.post(
+    "/farms/{farm_id}/{crop_id}/tasks",
+    response_model=CultivationTask,
+    status_code=201,
+)
+async def create_custom_task_for_farm(
+    farm_id: str,
+    crop_id: str,
+    input: CreateCultivationTaskInput,
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await cultivation_task_service.add_custom_task(
+        crop_id=crop_id,
+        user_id=user_id,
+        task_input=input,
+    )
+
+
+@router.post(
+    "/{crop_id}/tasks",
+    response_model=CultivationTask,
+    status_code=201,
+)
+async def create_custom_task(
+    crop_id: str,
+    input: CreateCultivationTaskInput,
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    return await cultivation_task_service.add_custom_task(
+        crop_id=crop_id,
+        user_id=user_id,
+        task_input=input,
+    )
+
+
+@router.patch(
+    "/farms/{farm_id}/{crop_id}/tasks/{task_id}/complete",
+    response_model=CultivationTask,
+)
+async def complete_cultivation_task_for_farm(
+    farm_id: str,
+    crop_id: str,
+    task_id: str,
+    payload: CompleteTaskRequest = CompleteTaskRequest(),
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await cultivation_task_service.complete_cultivation_task(
+        task_id=task_id,
+        crop_id=crop_id,
+        user_id=user_id,
+        execution_notes=payload.execution_notes,
+        actual_costs=payload.actual_costs,
+        completed_at=payload.completed_at,
+    )
+
+
+@router.patch(
+    "/{crop_id}/tasks/{task_id}/complete",
+    response_model=CultivationTask,
+)
+async def complete_cultivation_task(
+    crop_id: str,
+    task_id: str,
+    payload: CompleteTaskRequest = CompleteTaskRequest(),
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    return await cultivation_task_service.complete_cultivation_task(
+        task_id=task_id,
+        crop_id=crop_id,
+        user_id=user_id,
+        execution_notes=payload.execution_notes,
+        actual_costs=payload.actual_costs,
+        completed_at=payload.completed_at,
+    )
+
+
+@router.post(
+    "/farms/{farm_id}/{crop_id}/tasks/{task_id}/skip",
+    response_model=CultivationTask,
+)
+async def skip_cultivation_task_for_farm(
+    farm_id: str,
+    crop_id: str,
+    task_id: str,
+    payload: SkipTaskRequest = SkipTaskRequest(),
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await cultivation_task_service.skip_cultivation_task(
+        task_id=task_id,
+        crop_id=crop_id,
+        user_id=user_id,
+        reason=payload.reason,
+    )
+
+
+@router.post(
+    "/{crop_id}/tasks/{task_id}/skip",
+    response_model=CultivationTask,
+)
+async def skip_cultivation_task(
+    crop_id: str,
+    task_id: str,
+    payload: SkipTaskRequest = SkipTaskRequest(),
+    user_id: str = Depends(get_current_user_id),
+) -> CultivationTask:
+    return await cultivation_task_service.skip_cultivation_task(
+        task_id=task_id,
+        crop_id=crop_id,
+        user_id=user_id,
+        reason=payload.reason,
+    )
+
+
+@router.get(
+    "/farms/{farm_id}/calendar/tasks",
+    response_model=list[CultivationTask],
+)
+async def list_farm_calendar_tasks_crop_alias(
+    farm_id: str,
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    status: Optional[TaskState] = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    user_id: str = Depends(get_current_user_id),
+) -> list[CultivationTask]:
+    return await cultivation_task_service.list_farm_calendar_tasks(
+        farm_id=farm_id,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
+        limit=limit,
+    )
+
+
 # --- Investment Breakdown Query Endpoints ---
 
 
@@ -329,10 +535,8 @@ async def list_agricultural_inputs_for_farm(
     )
     if crop is None:
         raise CultivationCropNotFound(crop_id)
-    return (
-        await agricultural_input_service.list_agricultural_input_recommendations(
-            crop_id=crop_id, user_id=user_id, limit=limit
-        )
+    return await agricultural_input_service.list_agricultural_input_recommendations(
+        crop_id=crop_id, user_id=user_id, limit=limit
     )
 
 
@@ -349,10 +553,8 @@ async def list_agricultural_inputs(
         user_id=user_id, crop_id=crop_id
     ):
         raise CultivationCropNotFound(crop_id)
-    return (
-        await agricultural_input_service.list_agricultural_input_recommendations(
-            crop_id=crop_id, user_id=user_id, limit=limit
-        )
+    return await agricultural_input_service.list_agricultural_input_recommendations(
+        crop_id=crop_id, user_id=user_id, limit=limit
     )
 
 
@@ -371,10 +573,8 @@ async def get_agricultural_input_for_farm(
     )
     if crop is None:
         raise CultivationCropNotFound(crop_id)
-    input_rec = (
-        await agricultural_input_service.get_agricultural_input_recommendation(
-            recommendation_id=recommendation_id, user_id=user_id
-        )
+    input_rec = await agricultural_input_service.get_agricultural_input_recommendation(
+        recommendation_id=recommendation_id, user_id=user_id
     )
     if input_rec is None or input_rec.cultivation_crop_id != crop_id:
         raise AgriculturalInputNotFound(recommendation_id)
@@ -394,12 +594,9 @@ async def get_agricultural_input(
         user_id=user_id, crop_id=crop_id
     ):
         raise CultivationCropNotFound(crop_id)
-    input_rec = (
-        await agricultural_input_service.get_agricultural_input_recommendation(
-            recommendation_id=recommendation_id, user_id=user_id
-        )
+    input_rec = await agricultural_input_service.get_agricultural_input_recommendation(
+        recommendation_id=recommendation_id, user_id=user_id
     )
     if input_rec is None or input_rec.cultivation_crop_id != crop_id:
         raise AgriculturalInputNotFound(recommendation_id)
     return input_rec
-

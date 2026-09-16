@@ -1,9 +1,14 @@
+from datetime import date, datetime, timezone
+
 from app.infrastructure.database.collections import get_cultivation_tasks_collection
 from app.schemas.cultivation_task import (
+    CreateCultivationTaskInput,
     CultivationTask,
     CultivationTaskDocument,
     CultivationTaskInvariantFields,
     CultivationTaskTranslatableFields,
+    InvestmentActualCostInput,
+    TaskState,
 )
 from app.schemas.generic_types import PersistenceLanguage
 
@@ -152,3 +157,167 @@ async def delete(task_id: str, crop_id: str | None = None) -> bool:
 async def delete_all_by_crop(crop_id: str) -> int:
     result = await get_cultivation_tasks_collection().delete_many({"crop_id": crop_id})
     return result.deleted_count
+
+
+async def complete_task(
+    task_id: str,
+    language: PersistenceLanguage,
+    completed_at: datetime | None = None,
+    execution_notes: str | None = None,
+    actual_costs: list[InvestmentActualCostInput] | None = None,
+    crop_id: str | None = None,
+) -> CultivationTask | None:
+    doc = await get_document_by_id(task_id, crop_id=crop_id)
+    if not doc:
+        return None
+
+    completion_time = completed_at or datetime.now(timezone.utc)
+    doc.status = TaskState.COMPLETED
+    doc.completed_at = completion_time
+
+    if execution_notes:
+        note_text = f"Execution Notes: {execution_notes}"
+        doc.english.notes = (
+            f"{doc.english.notes}\n{note_text}" if doc.english.notes else note_text
+        )
+        doc.user_language.notes = (
+            f"{doc.user_language.notes}\n{note_text}"
+            if doc.user_language.notes
+            else note_text
+        )
+
+    if actual_costs:
+        for cost_input in actual_costs:
+            matched_en = False
+            for inv in doc.english.investments:
+                if (
+                    inv.reason.lower() == cost_input.reason.lower()
+                    or inv.category == cost_input.category
+                ):
+                    inv.actual_cost = cost_input.actual_cost
+                    matched_en = True
+                    break
+            if not matched_en and doc.english.investments:
+                doc.english.investments[0].actual_cost = cost_input.actual_cost
+
+            matched_user = False
+            for inv in doc.user_language.investments:
+                if (
+                    inv.reason.lower() == cost_input.reason.lower()
+                    or inv.category == cost_input.category
+                ):
+                    inv.actual_cost = cost_input.actual_cost
+                    matched_user = True
+                    break
+            if not matched_user and doc.user_language.investments:
+                doc.user_language.investments[0].actual_cost = cost_input.actual_cost
+
+    await save(doc)
+    return _to_cultivation_task(doc.model_dump(by_alias=True, mode="json"), language)
+
+
+async def skip_task(
+    task_id: str,
+    language: PersistenceLanguage,
+    reason: str | None = None,
+    crop_id: str | None = None,
+) -> CultivationTask | None:
+    doc = await get_document_by_id(task_id, crop_id=crop_id)
+    if not doc:
+        return None
+
+    doc.status = TaskState.SKIPPED
+    if reason:
+        skip_text = f"Skipped Reason: {reason}"
+        doc.english.notes = (
+            f"{doc.english.notes}\n{skip_text}" if doc.english.notes else skip_text
+        )
+        doc.user_language.notes = (
+            f"{doc.user_language.notes}\n{skip_text}"
+            if doc.user_language.notes
+            else skip_text
+        )
+
+    await save(doc)
+    return _to_cultivation_task(doc.model_dump(by_alias=True, mode="json"), language)
+
+
+async def add_custom_task(
+    crop_id: str,
+    task_input: CreateCultivationTaskInput,
+    language: PersistenceLanguage,
+) -> CultivationTask:
+    last_task = (
+        await get_cultivation_tasks_collection()
+        .find({"crop_id": crop_id}, {"sequence_number": 1})
+        .sort("sequence_number", -1)
+        .limit(1)
+        .to_list(1)
+    )
+    next_seq = (last_task[0]["sequence_number"] + 1) if last_task else 1
+
+    task_doc = CultivationTaskDocument(
+        crop_id=crop_id,
+        sequence_number=next_seq,
+        planned_start_date=task_input.planned_start_date,
+        planned_end_date=task_input.planned_end_date,
+        status=TaskState.PENDING,
+        priority=task_input.priority,
+        skippable=task_input.skippable,
+        english=CultivationTaskTranslatableFields(
+            task_name=task_input.task_name,
+            description=task_input.description,
+            notes=task_input.notes,
+            investments=task_input.investments,
+        ),
+        user_language=CultivationTaskTranslatableFields(
+            task_name=task_input.task_name,
+            description=task_input.description,
+            notes=task_input.notes,
+            investments=task_input.investments,
+        ),
+    )
+    await create(task_doc)
+    return _to_cultivation_task(
+        task_doc.model_dump(by_alias=True, mode="json"), language
+    )
+
+
+async def list_by_crops(
+    crop_ids: list[str],
+    language: PersistenceLanguage,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    status: TaskState | None = None,
+    limit: int = 100,
+) -> list[CultivationTask]:
+    if not crop_ids:
+        return []
+
+    query: dict = {"crop_id": {"$in": crop_ids}}
+    if start_date:
+        query["planned_end_date"] = {"$gte": start_date.isoformat()}
+    if end_date:
+        query["planned_start_date"] = {"$lte": end_date.isoformat()}
+    if status:
+        query["status"] = status.value
+
+    projection = {
+        "_id": 1,
+        "crop_id": 1,
+        "sequence_number": 1,
+        "planned_start_date": 1,
+        "planned_end_date": 1,
+        "status": 1,
+        "priority": 1,
+        "skippable": 1,
+        "completed_at": 1,
+        language.value: 1,
+    }
+    cursor = (
+        get_cultivation_tasks_collection()
+        .find(query, projection)
+        .sort([("planned_start_date", 1), ("sequence_number", 1)])
+        .limit(limit)
+    )
+    return [_to_cultivation_task(document, language) async for document in cursor]

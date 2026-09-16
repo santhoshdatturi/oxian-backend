@@ -4,6 +4,7 @@ from .rest.admin import router as admin_router
 from .rest.chat import router as chat_router
 from .rest.crop_recommendation import router as crop_recommendation_router
 from .rest.cultivation_crop import router as cultivation_crop_router
+from .rest.cultivation_task import router as cultivation_task_router
 from .rest.farm_profile import router as farm_profile_router
 from .rest.files import router as files_router
 from .rest.notification import router as notification_router
@@ -21,4 +22,5 @@ api_router.include_router(weather_router)
 api_router.include_router(admin_router)
 api_router.include_router(crop_recommendation_router)
 api_router.include_router(cultivation_crop_router)
+api_router.include_router(cultivation_task_router)
 api_router.include_router(notification_router)

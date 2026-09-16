@@ -22,6 +22,7 @@ from app.core.errors import (
 )
 from app.infrastructure.providers.gemini import is_gemini_dependency_error
 from app.repositories import (
+    investment_breakdown_repository,
     process_repository,
 )
 from app.schemas.agricultural_input_recommendation import (
@@ -124,6 +125,7 @@ async def _run_job(
     farm_id: str,
     crop_id: str,
     future: asyncio.Future[CropPlan],
+    is_next_stage: bool = False,
 ) -> None:
     try:
         process_task = asyncio.current_task()
@@ -221,6 +223,36 @@ async def _run_job(
             nonlocal saved_breakdown
             try:
                 raw_data = json.loads(breakdown_json)
+                if isinstance(raw_data, dict):
+                    investments = raw_data.get("investments")
+                    profitability = raw_data.get("profitability")
+                    if isinstance(investments, list) and isinstance(profitability, dict) and investments:
+                        # Extract primary currency from investments
+                        first_inv_cost = investments[0].get("estimated_cost") if isinstance(investments[0], dict) else None
+                        primary_currency = first_inv_cost.get("currency") if isinstance(first_inv_cost, dict) else None
+
+                        # Auto-reconcile minor LLM arithmetic discrepancies in total_cost and net_profit
+                        total_item_cost = sum(
+                            float(item.get("estimated_cost", {}).get("amount", 0.0))
+                            for item in investments
+                            if isinstance(item, dict) and isinstance(item.get("estimated_cost"), dict)
+                        )
+                        if total_item_cost > 0:
+                            if "estimated_total_cost" in profitability and isinstance(profitability["estimated_total_cost"], dict):
+                                profitability["estimated_total_cost"]["amount"] = total_item_cost
+                                if primary_currency and profitability["estimated_total_cost"].get("currency") != primary_currency:
+                                    profitability["estimated_total_cost"]["currency"] = primary_currency
+
+                            if "estimated_gross_income" in profitability and isinstance(profitability["estimated_gross_income"], dict):
+                                gross = float(profitability["estimated_gross_income"].get("amount", 0.0))
+                                if primary_currency and profitability["estimated_gross_income"].get("currency") != primary_currency:
+                                    profitability["estimated_gross_income"]["currency"] = primary_currency
+
+                                if "estimated_net_profit" in profitability and isinstance(profitability["estimated_net_profit"], dict):
+                                    profitability["estimated_net_profit"]["amount"] = gross - total_item_cost
+                                    if primary_currency and profitability["estimated_net_profit"].get("currency") != primary_currency:
+                                        profitability["estimated_net_profit"]["currency"] = primary_currency
+
                 english_fields = InvestmentBreakdownTranslatableFields.model_validate(
                     raw_data
                 )
@@ -364,18 +396,45 @@ async def _run_job(
                 AgriculturalInputRecommendationTranslatableFields
             ]
 
-        system_prompt = _build_system_prompt(
-            cultivation_calendar_schema_json=json.dumps(
-                TaskInputCombined.model_json_schema(), indent=2
-            ),
-            investment_breakdown_schema_json=json.dumps(
-                InvestmentBreakdownTranslatableFields.model_json_schema(), indent=2
-            ),
-            agricultural_input_recommendation_schema_json=json.dumps(
-                AgriculturalInputRecommendationTranslatableFields.model_json_schema(),
-                indent=2,
-            ),
-        )
+        today = date.today()
+        iso_week = today.isocalendar()
+
+        if is_next_stage:
+            existing_tasks = await cultivation_task_service._list_cultivation_tasks(
+                crop_id=crop_id
+            )
+            next_sequence_number = (
+                max([t.sequence_number for t in existing_tasks], default=0) + 1
+            )
+            earliest_start_date = max(
+                [t.planned_end_date for t in existing_tasks], default=today
+            )
+            system_prompt = PromptManager.get_prompt(
+                "crop_planning_next_stage",
+                current_date=today.isoformat(),
+                current_iso_week=f"Year {iso_week.year} / Week {iso_week.week}",
+                next_sequence_number=next_sequence_number,
+                earliest_start_date=earliest_start_date.isoformat(),
+                cultivation_calendar_schema_json=json.dumps(
+                    TaskInputCombined.model_json_schema(), indent=2
+                ),
+                investment_breakdown_schema_json=json.dumps(
+                    InvestmentBreakdownTranslatableFields.model_json_schema(), indent=2
+                ),
+            )
+        else:
+            system_prompt = _build_system_prompt(
+                cultivation_calendar_schema_json=json.dumps(
+                    TaskInputCombined.model_json_schema(), indent=2
+                ),
+                investment_breakdown_schema_json=json.dumps(
+                    InvestmentBreakdownTranslatableFields.model_json_schema(), indent=2
+                ),
+                agricultural_input_recommendation_schema_json=json.dumps(
+                    AgriculturalInputRecommendationTranslatableFields.model_json_schema(),
+                    indent=2,
+                ),
+            )
 
         user_message = _build_user_message(
             farm_profile_json=farm_profile_json,
@@ -399,6 +458,11 @@ async def _run_job(
         )
 
         await agent.ainvoke({"messages": [user_message]})
+
+        if is_next_stage and saved_breakdown is None:
+            saved_breakdown = (
+                await investment_breakdown_repository.get_document_by_crop_id(crop_id)
+            )
 
         if not saved_breakdown or not saved_tasks:
             raise InternalOperationFailed("Agent did not complete the planning output.")
@@ -478,6 +542,31 @@ async def generate_crop_plan(
             farm_id=farm_id,
             crop_id=crop_id,
             future=future,
+        )
+
+    await enqueue(_job)
+    return await future
+
+
+async def plan_next_stage(
+    *,
+    user_id: str,
+    farm_id: str,
+    crop_id: str,
+) -> CropPlan:
+    process = Process(status=State.PENDING)
+    process = await process_repository.create(process)
+
+    future: asyncio.Future[CropPlan] = asyncio.get_event_loop().create_future()
+
+    async def _job() -> None:
+        await _run_job(
+            process=process,
+            user_id=user_id,
+            farm_id=farm_id,
+            crop_id=crop_id,
+            future=future,
+            is_next_stage=True,
         )
 
     await enqueue(_job)
