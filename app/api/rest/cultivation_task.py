@@ -79,3 +79,40 @@ async def list_farm_calendar_tasks(
         status=status,
         limit=limit,
     )
+
+
+@router.get(
+    "/cultivation-crops/{crop_id}/tasks/reschedule-preview",
+    response_model=cultivation_task_service.ReschedulePreviewResponse,
+)
+async def preview_crop_tasks_reschedule(
+    crop_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> cultivation_task_service.ReschedulePreviewResponse:
+    """
+    Previews adjusted date windows for overdue tasks and subsequent dependent activities.
+    """
+    return await cultivation_task_service.preview_reschedule(
+        crop_id=crop_id,
+        user_id=user_id,
+    )
+
+
+@router.post(
+    "/cultivation-crops/{crop_id}/tasks/reschedule/confirm",
+    response_model=list[CultivationTask],
+)
+async def confirm_crop_tasks_reschedule(
+    crop_id: str,
+    payload: cultivation_task_service.ConfirmRescheduleRequest = cultivation_task_service.ConfirmRescheduleRequest(),
+    user_id: str = Depends(get_current_user_id),
+) -> list[CultivationTask]:
+    """
+    Commits proposed rescheduled dates for overdue and dependent tasks to the calendar.
+    """
+    return await cultivation_task_service.confirm_reschedule(
+        crop_id=crop_id,
+        user_id=user_id,
+        task_ids=payload.task_ids,
+    )
+

@@ -278,3 +278,29 @@ class CreateCultivationTaskInput(BaseModel):
         if start_date and v < start_date:
             raise ValueError("planned_end_date cannot be before planned_start_date")
         return v
+
+
+class TaskShiftPreview(BaseModel):
+    task_id: str
+    task_name: str
+    sequence_number: int
+    current_start_date: date
+    current_end_date: date
+    proposed_start_date: date
+    proposed_end_date: date
+    is_overdue: bool
+
+
+class ReschedulePreviewResponse(BaseModel):
+    crop_id: str
+    days_delayed: int
+    overdue_task_count: int
+    tasks_to_reschedule: list[TaskShiftPreview]
+
+
+class ConfirmRescheduleRequest(BaseModel):
+    task_ids: Optional[list[str]] = Field(
+        default=None,
+        description="Optional list of specific task IDs to reschedule. If omitted, all proposed tasks are rescheduled.",
+    )
+

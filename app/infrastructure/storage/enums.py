@@ -9,3 +9,4 @@ class StorageScope(StrEnum):
 class StorageEntity(StrEnum):
     CHAT = "chat"
     CROP = "crop"
+    OBSERVATION = "observation"

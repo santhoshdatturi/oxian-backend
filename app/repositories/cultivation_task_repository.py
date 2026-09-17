@@ -321,3 +321,35 @@ async def list_by_crops(
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]
+
+
+async def update_task_dates(
+    task_id: str,
+    planned_start_date: date,
+    planned_end_date: date,
+    status: TaskState,
+) -> bool:
+    res = await get_cultivation_tasks_collection().update_one(
+        {"_id": task_id},
+        {
+            "$set": {
+                "planned_start_date": planned_start_date.isoformat(),
+                "planned_end_date": planned_end_date.isoformat(),
+                "status": status.value,
+            }
+        },
+    )
+    return res.modified_count > 0
+
+
+async def list_pending_overdue_tasks(
+    as_of_date: date,
+    limit: int = 200,
+) -> list[dict]:
+    query = {
+        "status": TaskState.PENDING.value,
+        "planned_end_date": {"$lt": as_of_date.isoformat()},
+    }
+    cursor = get_cultivation_tasks_collection().find(query).limit(limit)
+    return await cursor.to_list(length=limit)
+

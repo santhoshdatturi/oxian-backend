@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Any
 
 from app.core.errors import (
     CultivationCropNotFound,
@@ -12,10 +13,13 @@ from app.repositories import (
     investment_breakdown_repository,
 )
 from app.schemas.cultivation_task import (
+    ConfirmRescheduleRequest,
     CreateCultivationTaskInput,
     CultivationTask,
     CultivationTaskDocument,
     InvestmentActualCostInput,
+    ReschedulePreviewResponse,
+    TaskShiftPreview,
     TaskState,
 )
 from app.schemas.generic_types import PersistenceLanguage
@@ -215,3 +219,116 @@ async def _create_cultivation_task(
     document: CultivationTaskDocument,
 ) -> CultivationTaskDocument:
     return await cultivation_task_repository.create(document)
+
+
+async def preview_reschedule(
+    *, crop_id: str, user_id: str
+) -> ReschedulePreviewResponse:
+    if not await cultivation_crop_service.has_crop_access(
+        user_id=user_id, crop_id=crop_id
+    ):
+        raise CultivationCropNotFound(crop_id)
+
+    tasks = await cultivation_task_repository.list_by_crop(
+        crop_id=crop_id,
+        language=PersistenceLanguage.USER_LANGUAGE,
+        limit=200,
+    )
+    today = date.today()
+    pending_tasks = [t for t in tasks if t.status == TaskState.PENDING]
+    overdue_tasks = [t for t in pending_tasks if t.planned_end_date < today]
+
+    if not overdue_tasks:
+        return ReschedulePreviewResponse(
+            crop_id=crop_id,
+            days_delayed=0,
+            overdue_task_count=0,
+            tasks_to_reschedule=[],
+        )
+
+    earliest_overdue = min(overdue_tasks, key=lambda t: t.planned_end_date)
+    days_delayed = max((today - earliest_overdue.planned_end_date).days, 1)
+
+    shifts: list[TaskShiftPreview] = []
+    for task in pending_tasks:
+        if task.sequence_number < earliest_overdue.sequence_number:
+            continue
+        duration = task.planned_end_date - task.planned_start_date
+        is_od = task.planned_end_date < today
+        if is_od:
+            # Overdue task starts today
+            prop_start = today
+            prop_end = today + duration
+        else:
+            # Shift subsequent dependent tasks by delay_days
+            prop_start = task.planned_start_date + timedelta(days=days_delayed)
+            prop_end = task.planned_end_date + timedelta(days=days_delayed)
+
+        shifts.append(
+            TaskShiftPreview(
+                task_id=task.id,
+                task_name=task.task_name,
+                sequence_number=task.sequence_number,
+                current_start_date=task.planned_start_date,
+                current_end_date=task.planned_end_date,
+                proposed_start_date=prop_start,
+                proposed_end_date=prop_end,
+                is_overdue=is_od,
+            )
+        )
+
+    return ReschedulePreviewResponse(
+        crop_id=crop_id,
+        days_delayed=days_delayed,
+        overdue_task_count=len(overdue_tasks),
+        tasks_to_reschedule=shifts,
+    )
+
+
+async def confirm_reschedule(
+    *,
+    crop_id: str,
+    user_id: str,
+    task_ids: list[str] | None = None,
+) -> list[CultivationTask]:
+    preview = await preview_reschedule(crop_id=crop_id, user_id=user_id)
+    if not preview.tasks_to_reschedule:
+        return []
+
+    target_shifts = preview.tasks_to_reschedule
+    if task_ids:
+        id_set = set(task_ids)
+        target_shifts = [s for s in target_shifts if s.task_id in id_set]
+
+    rescheduled: list[CultivationTask] = []
+    for shift in target_shifts:
+        await cultivation_task_repository.update_task_dates(
+            task_id=shift.task_id,
+            planned_start_date=shift.proposed_start_date,
+            planned_end_date=shift.proposed_end_date,
+            status=TaskState.RE_SCHEDULED,
+        )
+        updated = await cultivation_task_repository.get_by_id(
+            task_id=shift.task_id,
+            language=PersistenceLanguage.USER_LANGUAGE,
+            crop_id=crop_id,
+        )
+        if updated:
+            rescheduled.append(updated)
+
+    return rescheduled
+
+
+async def check_all_overdue_tasks() -> dict[str, Any]:
+    today = date.today()
+    overdue_docs = await cultivation_task_repository.list_pending_overdue_tasks(
+        as_of_date=today,
+        limit=500,
+    )
+    crop_ids = list({doc["crop_id"] for doc in overdue_docs if doc.get("crop_id")})
+    return {
+        "overdue_tasks_count": len(overdue_docs),
+        "affected_crops_count": len(crop_ids),
+        "affected_crop_ids": crop_ids,
+    }
+

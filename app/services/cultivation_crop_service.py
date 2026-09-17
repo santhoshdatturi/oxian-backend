@@ -186,6 +186,7 @@ async def get_cultivation_crop_by_crop_id(
     *,
     user_id: str,
     crop_id: str,
+    language: PersistenceLanguage = PersistenceLanguage.USER_LANGUAGE,
 ) -> CultivationCrop | None:
     farm_id = await cultivation_crop_repository.get_farm_id_by_id(crop_id)
     if farm_id is None:
@@ -194,7 +195,7 @@ async def get_cultivation_crop_by_crop_id(
     return await cultivation_crop_repository.get_by_id(
         crop_id=crop_id,
         farm_id=farm_id,
-        language=PersistenceLanguage.USER_LANGUAGE,
+        language=language,
     )
 
 

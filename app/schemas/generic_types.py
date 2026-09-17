@@ -66,12 +66,17 @@ class MoneyValue(BaseModel):
 
 
 class QuantityUnit(StrEnum):
-    """Supported quantity units."""
+    """Supported quantity units for crop yield, harvest, and input dosages."""
 
-    KG = "kg"
+    GRAM = "gram"
+    KILOGRAM = "kilogram"
     TONNE = "tonne"
     QUINTAL = "quintal"
     BUSHEL = "bushel"
+    MILLILITER = "milliliter"
+    LITER = "liter"
+    PACKET = "packet"
+    BOTTLE = "bottle"
 
 
 class Quantity(BaseModel):
