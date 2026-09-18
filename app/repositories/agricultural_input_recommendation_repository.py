@@ -14,9 +14,18 @@ def _to_agricultural_input_recommendation(
     document: dict,
     language: PersistenceLanguage,
 ) -> AgriculturalInputRecommendation:
-    translatable_fields = document.get(language.value) or {}
+    """Build a recommendation, falling back to English text when needed."""
+    translatable_fields = (
+        document.get(language.value)
+        or document.get(PersistenceLanguage.ENGLISH.value)
+        or {}
+    )
     invariant_data = dict(document)
-    for key in AgriculturalInputInvariantFields.model_fields:
+    for key in list(AgriculturalInputInvariantFields.model_fields.keys()) + [
+        "selected_strategy_rank",
+        "adopted_plan_id",
+        "adopted_task_id",
+    ]:
         value = document.get(key, translatable_fields.get(key))
         if value is not None:
             invariant_data[key] = value
@@ -24,6 +33,9 @@ def _to_agricultural_input_recommendation(
     return AgriculturalInputRecommendation.model_validate(
         {
             **invariant_fields.model_dump(mode="json"),
+            "selected_strategy_rank": document.get("selected_strategy_rank"),
+            "adopted_plan_id": document.get("adopted_plan_id"),
+            "adopted_task_id": document.get("adopted_task_id"),
             **translatable_fields,
         }
     )
@@ -91,6 +103,11 @@ async def get_by_id(
     language: PersistenceLanguage,
     crop_id: str | None = None,
 ) -> AgriculturalInputRecommendation | None:
+    """Return a localized recommendation matching the ID and optional crop.
+
+    Returns ``None`` when no document matches. English text is used when the
+    requested translation is unavailable.
+    """
     query: dict[str, str] = {"_id": recommendation_id}
     if crop_id:
         query["cultivation_crop_id"] = crop_id
@@ -98,7 +115,11 @@ async def get_by_id(
         "_id": 1,
         "cultivation_crop_id": 1,
         "created_at": 1,
+        "selected_strategy_rank": 1,
+        "adopted_plan_id": 1,
+        "adopted_task_id": 1,
         language.value: 1,
+        PersistenceLanguage.ENGLISH.value: 1,
     }
     document = await get_agricultural_input_recommendations_collection().find_one(
         query, projection
@@ -136,11 +157,16 @@ async def list_by_crop(
     language: PersistenceLanguage,
     limit: int = 100,
 ) -> list[AgriculturalInputRecommendation]:
+    """List the crop's newest recommendations with English text as a fallback."""
     projection = {
         "_id": 1,
         "cultivation_crop_id": 1,
         "created_at": 1,
+        "selected_strategy_rank": 1,
+        "adopted_plan_id": 1,
+        "adopted_task_id": 1,
         language.value: 1,
+        PersistenceLanguage.ENGLISH.value: 1,
     }
     cursor = (
         get_agricultural_input_recommendations_collection()

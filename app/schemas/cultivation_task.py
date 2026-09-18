@@ -112,9 +112,6 @@ class CultivationTaskInvariantFields(BaseModel):
     crop_id: str = Field(
         ..., description="Identifier of the crop this task belongs to."
     )
-    sequence_number: int = Field(
-        ..., description="Order of the task within the cultivation schedule."
-    )
     planned_start_date: date = Field(
         ..., description="Original planned start date for the task."
     )
@@ -283,7 +280,6 @@ class CreateCultivationTaskInput(BaseModel):
 class TaskShiftPreview(BaseModel):
     task_id: str
     task_name: str
-    sequence_number: int
     current_start_date: date
     current_end_date: date
     proposed_start_date: date

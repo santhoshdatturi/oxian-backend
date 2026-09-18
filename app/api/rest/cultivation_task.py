@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.dependencies import get_current_user_id
 from app.schemas.cultivation_task import (
     CompleteTaskRequest,
+    ConfirmRescheduleRequest,
     CultivationTask,
     SkipTaskRequest,
     TaskState,
@@ -104,7 +105,7 @@ async def preview_crop_tasks_reschedule(
 )
 async def confirm_crop_tasks_reschedule(
     crop_id: str,
-    payload: cultivation_task_service.ConfirmRescheduleRequest = cultivation_task_service.ConfirmRescheduleRequest(),
+    payload: ConfirmRescheduleRequest = ConfirmRescheduleRequest(),
     user_id: str = Depends(get_current_user_id),
 ) -> list[CultivationTask]:
     """

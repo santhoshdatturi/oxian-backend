@@ -76,13 +76,16 @@ async def get_by_id(
     language: PersistenceLanguage,
     crop_id: str | None = None,
 ) -> CultivationTask | None:
+    """Return a localized task matching the ID and optional crop.
+
+    Returns ``None`` when no document matches.
+    """
     query: dict[str, str] = {"_id": task_id}
     if crop_id:
         query["crop_id"] = crop_id
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -125,10 +128,10 @@ async def list_by_crop(
     language: PersistenceLanguage,
     limit: int = 100,
 ) -> list[CultivationTask]:
+    """List a crop's tasks in ascending planned-start-date order."""
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -140,7 +143,7 @@ async def list_by_crop(
     cursor = (
         get_cultivation_tasks_collection()
         .find({"crop_id": crop_id}, projection)
-        .sort("sequence_number", 1)
+        .sort("planned_start_date", 1)
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]
@@ -247,18 +250,9 @@ async def add_custom_task(
     task_input: CreateCultivationTaskInput,
     language: PersistenceLanguage,
 ) -> CultivationTask:
-    last_task = (
-        await get_cultivation_tasks_collection()
-        .find({"crop_id": crop_id}, {"sequence_number": 1})
-        .sort("sequence_number", -1)
-        .limit(1)
-        .to_list(1)
-    )
-    next_seq = (last_task[0]["sequence_number"] + 1) if last_task else 1
-
+    """Persist a pending custom task using the supplied text for both languages."""
     task_doc = CultivationTaskDocument(
         crop_id=crop_id,
-        sequence_number=next_seq,
         planned_start_date=task_input.planned_start_date,
         planned_end_date=task_input.planned_end_date,
         status=TaskState.PENDING,
@@ -291,6 +285,7 @@ async def list_by_crops(
     status: TaskState | None = None,
     limit: int = 100,
 ) -> list[CultivationTask]:
+    """List date-window and status matches, ordered by planned start date."""
     if not crop_ids:
         return []
 
@@ -305,7 +300,6 @@ async def list_by_crops(
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -317,7 +311,7 @@ async def list_by_crops(
     cursor = (
         get_cultivation_tasks_collection()
         .find(query, projection)
-        .sort([("planned_start_date", 1), ("sequence_number", 1)])
+        .sort("planned_start_date", 1)
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]
@@ -352,4 +346,3 @@ async def list_pending_overdue_tasks(
     }
     cursor = get_cultivation_tasks_collection().find(query).limit(limit)
     return await cursor.to_list(length=limit)
-

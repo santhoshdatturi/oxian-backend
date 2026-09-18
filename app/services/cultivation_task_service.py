@@ -13,7 +13,6 @@ from app.repositories import (
     investment_breakdown_repository,
 )
 from app.schemas.cultivation_task import (
-    ConfirmRescheduleRequest,
     CreateCultivationTaskInput,
     CultivationTask,
     CultivationTaskDocument,
@@ -224,6 +223,11 @@ async def _create_cultivation_task(
 async def preview_reschedule(
     *, crop_id: str, user_id: str
 ) -> ReschedulePreviewResponse:
+    """Preview moving affected overdue work to today and shifting later pending tasks.
+
+    Raises:
+        CultivationCropNotFound: The user cannot access the crop.
+    """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
     ):
@@ -251,8 +255,14 @@ async def preview_reschedule(
 
     shifts: list[TaskShiftPreview] = []
     for task in pending_tasks:
-        if task.sequence_number < earliest_overdue.sequence_number:
+        if task.planned_end_date < earliest_overdue.planned_start_date and task.planned_end_date >= today:
             continue
+        if task.planned_end_date < earliest_overdue.planned_end_date and task.planned_end_date < today:
+            # Also overdue, will be rescheduled
+            pass
+        elif task.planned_end_date < earliest_overdue.planned_start_date:
+            continue
+
         duration = task.planned_end_date - task.planned_start_date
         is_od = task.planned_end_date < today
         if is_od:
@@ -268,7 +278,6 @@ async def preview_reschedule(
             TaskShiftPreview(
                 task_id=task.id,
                 task_name=task.task_name,
-                sequence_number=task.sequence_number,
                 current_start_date=task.planned_start_date,
                 current_end_date=task.planned_end_date,
                 proposed_start_date=prop_start,
@@ -331,4 +340,3 @@ async def check_all_overdue_tasks() -> dict[str, Any]:
         "affected_crops_count": len(crop_ids),
         "affected_crop_ids": crop_ids,
     }
-
