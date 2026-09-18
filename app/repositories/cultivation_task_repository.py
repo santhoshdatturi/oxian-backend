@@ -343,4 +343,3 @@ async def list_pending_overdue_tasks(
     }
     cursor = get_cultivation_tasks_collection().find(query).limit(limit)
     return await cursor.to_list(length=limit)
-

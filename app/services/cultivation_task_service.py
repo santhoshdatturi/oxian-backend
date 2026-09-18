@@ -343,4 +343,3 @@ async def check_all_overdue_tasks() -> dict[str, Any]:
         "affected_crops_count": len(crop_ids),
         "affected_crop_ids": crop_ids,
     }
-
