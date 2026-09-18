@@ -33,6 +33,11 @@ from app.services import cultivation_crop_service, cultivation_task_service
 async def list_agricultural_input_recommendations(
     *, crop_id: str, user_id: str, limit: int = 100
 ) -> list[AgriculturalInputRecommendation]:
+    """Return accessible recommendations enriched with adopted plan details.
+
+    Adopted plans whose original recommendation is unavailable are represented as
+    synthetic recommendations. Returns an empty list when the user lacks crop access.
+    """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
     ):
@@ -110,10 +115,18 @@ async def select_remedy_strategy(
     application_date: Optional[date] = None,
     notes: Optional[str] = None,
 ) -> tuple[AgriculturalInputPlan, CultivationTask]:
-    """
-    Persists the selected treatment strategy as an AgriculturalInputPlan and
-    automatically injects an actionable task into the crop's cultivation calendar
-    with investment tracking.
+    """Adopt a recommended strategy and return its localized plan and task.
+
+    The application date defaults to today. The selection creates a plan and a
+    pending calendar task, then attempts to update the crop's investment breakdown
+    and recommendation adoption details without failing the selection if either
+    supplementary update fails.
+
+    Raises:
+        AgriculturalInputNotFound: If the recommendation is inaccessible or missing,
+            or the saved plan or task cannot be loaded.
+        ValidationFailed: If ``strategy_rank`` does not identify a recommended
+            strategy.
     """
     crop_id = await agricultural_input_recommendation_repository.get_crop_id_by_id(
         recommendation_id

@@ -223,6 +223,14 @@ async def _create_cultivation_task(
 async def preview_reschedule(
     *, crop_id: str, user_id: str
 ) -> ReschedulePreviewResponse:
+    """Preview date shifts for overdue pending tasks and later scheduled work.
+
+    Included overdue tasks restart today while included non-overdue tasks move by
+    the delay measured from the earliest overdue task's end date.
+
+    Raises:
+        CultivationCropNotFound: If the user cannot access the crop.
+    """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
     ):

@@ -76,6 +76,7 @@ async def get_by_id(
     language: PersistenceLanguage,
     crop_id: str | None = None,
 ) -> CultivationTask | None:
+    """Return a localized task matching the ID and optional crop."""
     query: dict[str, str] = {"_id": task_id}
     if crop_id:
         query["crop_id"] = crop_id
@@ -124,6 +125,7 @@ async def list_by_crop(
     language: PersistenceLanguage,
     limit: int = 100,
 ) -> list[CultivationTask]:
+    """Return the crop's tasks ordered by planned start date."""
     projection = {
         "_id": 1,
         "crop_id": 1,
@@ -245,6 +247,7 @@ async def add_custom_task(
     task_input: CreateCultivationTaskInput,
     language: PersistenceLanguage,
 ) -> CultivationTask:
+    """Create a pending task with the supplied dates and task content."""
     task_doc = CultivationTaskDocument(
         crop_id=crop_id,
         planned_start_date=task_input.planned_start_date,
@@ -279,6 +282,7 @@ async def list_by_crops(
     status: TaskState | None = None,
     limit: int = 100,
 ) -> list[CultivationTask]:
+    """Return date-ordered tasks that overlap the optional date range."""
     if not crop_ids:
         return []
 

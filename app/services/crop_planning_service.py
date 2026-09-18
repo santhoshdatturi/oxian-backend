@@ -127,6 +127,12 @@ async def _run_job(
     future: asyncio.Future[CropPlan],
     is_next_stage: bool = False,
 ) -> None:
+    """Run crop planning and settle ``future`` with the saved plan or an error.
+
+    The job persists generated dated tasks, input recommendations, and an investment
+    breakdown. Cancellation cancels the future; other failures mark the process as
+    failed and set the exception on the future.
+    """
     try:
         process_task = asyncio.current_task()
         if process_task is None:
