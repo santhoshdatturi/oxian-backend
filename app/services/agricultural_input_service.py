@@ -222,12 +222,18 @@ async def select_remedy_strategy(
             new_inv_eng = InvestmentItem(
                 category=InvestmentCategory.AGRICULTURAL_INPUT,
                 reason=task_name_eng,
-                estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
+                estimated_cost=MoneyValue(
+                    amount=0.0,
+                    currency=breakdown.english.profitability.estimated_total_cost.currency,
+                ),
             )
             new_inv_user = InvestmentItem(
                 category=InvestmentCategory.AGRICULTURAL_INPUT,
                 reason=task_name_user,
-                estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
+                estimated_cost=MoneyValue(
+                    amount=0.0,
+                    currency=breakdown.english.profitability.estimated_total_cost.currency,
+                ),
             )
             breakdown.english.investments.append(new_inv_eng)
             breakdown.user_language.investments.append(new_inv_user)
