@@ -140,7 +140,7 @@ async def list_by_crop(
     cursor = (
         get_cultivation_tasks_collection()
         .find({"crop_id": crop_id}, projection)
-        .sort("sequence_number", 1)
+        .sort([("planned_start_date", 1), ("sequence_number", 1)])
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]

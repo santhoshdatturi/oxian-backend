@@ -13,7 +13,6 @@ from app.repositories import (
     investment_breakdown_repository,
 )
 from app.schemas.cultivation_task import (
-    ConfirmRescheduleRequest,
     CreateCultivationTaskInput,
     CultivationTask,
     CultivationTaskDocument,

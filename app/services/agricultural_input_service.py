@@ -20,10 +20,13 @@ from app.schemas.cultivation_task import (
     CultivationTask,
     CultivationTaskDocument,
     CultivationTaskTranslatableFields,
+    Investment,
+    InvestmentCategory,
     Priority,
     TaskState,
 )
 from app.schemas.generic_types import Currency, MoneyValue, PersistenceLanguage
+from app.schemas.investment_breakdown import InvestmentItem
 from app.services import cultivation_crop_service, cultivation_task_service
 
 
@@ -34,11 +37,37 @@ async def list_agricultural_input_recommendations(
         user_id=user_id, crop_id=crop_id
     ):
         return []
-    return await agricultural_input_recommendation_repository.list_by_crop(
+    recs = await agricultural_input_recommendation_repository.list_by_crop(
         crop_id=crop_id,
         language=PersistenceLanguage.USER_LANGUAGE,
         limit=limit,
     )
+    plans = await agricultural_input_plan_repository.list_by_crop(
+        crop_id=crop_id,
+        language=PersistenceLanguage.USER_LANGUAGE,
+        limit=limit,
+    )
+    existing_rec_ids = {r.id for r in recs}
+    for plan in plans:
+        matched = False
+        for rec in recs:
+            if rec.id == plan.recommendation_id:
+                matched = True
+                if rec.selected_strategy_rank is None:
+                    rec.selected_strategy_rank = plan.selected_strategy.rank
+                    rec.adopted_plan_id = plan.id
+        if not matched and plan.id not in existing_rec_ids:
+            synth_rec = AgriculturalInputRecommendation(
+                id=plan.id,
+                cultivation_crop_id=plan.cultivation_crop_id,
+                title="Adopted Remedy Strategy",
+                problem=plan.notes or "Scheduled treatment plan",
+                strategies=[plan.selected_strategy],
+                selected_strategy_rank=plan.selected_strategy.rank,
+                adopted_plan_id=plan.id,
+            )
+            recs.append(synth_rec)
+    return recs
 
 
 async def get_agricultural_input_recommendation(
@@ -194,12 +223,12 @@ async def select_remedy_strategy(
             crop_id
         )
         if breakdown:
-            new_inv_eng = Investment(
+            new_inv_eng = InvestmentItem(
                 category=InvestmentCategory.AGRICULTURAL_INPUT,
                 reason=task_name_eng,
                 estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
             )
-            new_inv_user = Investment(
+            new_inv_user = InvestmentItem(
                 category=InvestmentCategory.AGRICULTURAL_INPUT,
                 reason=task_name_user,
                 estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
@@ -207,6 +236,19 @@ async def select_remedy_strategy(
             breakdown.english.investments.append(new_inv_eng)
             breakdown.user_language.investments.append(new_inv_user)
             await investment_breakdown_repository.save(breakdown)
+    except Exception:
+        pass
+
+    # 4. Update AgriculturalInputRecommendationDocument with adoption details
+    try:
+        rec_doc = await agricultural_input_recommendation_repository.get_document_by_id(
+            recommendation_id=recommendation_id, crop_id=crop_id
+        )
+        if rec_doc:
+            rec_doc.selected_strategy_rank = strategy_rank
+            rec_doc.adopted_plan_id = plan_doc.id
+            rec_doc.adopted_task_id = task_doc.id
+            await agricultural_input_recommendation_repository.save(rec_doc)
     except Exception:
         pass
 
@@ -218,6 +260,8 @@ async def select_remedy_strategy(
         plan_id=plan_doc.id,
         language=PersistenceLanguage.USER_LANGUAGE,
     )
+    if user_plan is None or user_task is None:
+        raise AgriculturalInputNotFound(plan_doc.id)
     return user_plan, user_task
 
 
