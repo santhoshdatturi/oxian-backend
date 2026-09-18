@@ -127,6 +127,12 @@ async def _run_job(
     future: asyncio.Future[CropPlan],
     is_next_stage: bool = False,
 ) -> None:
+    """Run crop planning and settle ``future`` with the saved plan or an error.
+
+    The job persists generated dated tasks, input recommendations, and an investment
+    breakdown. Cancellation cancels the future; other failures mark the process as
+    failed and set the exception on the future.
+    """
     try:
         process_task = asyncio.current_task()
         if process_task is None:
@@ -208,7 +214,7 @@ async def _run_job(
             tasks_json: str = Field(
                 description=(
                     "A JSON string representing a list of objects, each containing: "
-                    "- 'task': CultivationTaskTranslatableFields (including sequence_number, planned_start_date, planned_end_date, priority, skippable inside the task object for planning purposes) "
+                    "- 'task': CultivationTaskTranslatableFields (including planned_start_date, planned_end_date, priority, skippable inside the task object for planning purposes, strictly ordered chronologically) "
                     "- 'input_recommendation': Optional AgriculturalInputRecommendationTranslatableFields"
                 )
             )
@@ -337,7 +343,6 @@ async def _run_job(
                     # We extract invariant fields from the task_raw since the agent generated them
                     # inside the task object for planning purposes.
                     try:
-                        seq_num = int(task_raw.get("sequence_number", 1))
                         start_date = date.fromisoformat(
                             task_raw.get("planned_start_date")
                         )
@@ -348,7 +353,6 @@ async def _run_job(
                         logger.warning(
                             f"Failed to parse invariant fields for task: {exc}"
                         )
-                        seq_num = 1
                         start_date = date.today()
                         end_date = date.today()
                         priority = Priority.MEDIUM
@@ -359,7 +363,6 @@ async def _run_job(
 
                     task_doc = CultivationTaskDocument(
                         crop_id=crop_id,
-                        sequence_number=seq_num,
                         planned_start_date=start_date,
                         planned_end_date=end_date,
                         status=TaskState.PENDING,
@@ -384,7 +387,6 @@ async def _run_job(
 
         # Schema JSONs for prompt
         class PlanningTaskSchema(CultivationTaskTranslatableFields):
-            sequence_number: int
             planned_start_date: date
             planned_end_date: date
             priority: Priority
@@ -403,9 +405,6 @@ async def _run_job(
             existing_tasks = await cultivation_task_service._list_cultivation_tasks(
                 crop_id=crop_id
             )
-            next_sequence_number = (
-                max([t.sequence_number for t in existing_tasks], default=0) + 1
-            )
             earliest_start_date = max(
                 [t.planned_end_date for t in existing_tasks], default=today
             )
@@ -413,7 +412,6 @@ async def _run_job(
                 "crop_planning_next_stage",
                 current_date=today.isoformat(),
                 current_iso_week=f"Year {iso_week.year} / Week {iso_week.week}",
-                next_sequence_number=next_sequence_number,
                 earliest_start_date=earliest_start_date.isoformat(),
                 cultivation_calendar_schema_json=json.dumps(
                     TaskInputCombined.model_json_schema(), indent=2

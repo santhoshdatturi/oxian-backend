@@ -15,15 +15,13 @@ Your task is to generate the subsequent operational lifecycle tasks from **Veget
 You MUST use the provided tools to save these items. Call `save_cultivation_tasks` and optionally `save_investment_breakdown`.
 
 Current Date: {{ current_date }} ({{ current_iso_week }})
-Starting Sequence Number: {{ next_sequence_number }}
 Earliest Planned Start Date: {{ earliest_start_date }}
 
 # RULES AND CONSTRAINTS
 
 ## 1. Cultivation Calendar (Tasks)
-- Sequence numbers MUST start from {{ next_sequence_number }} and increment sequentially.
 - Planned dates MUST be scheduled on or after {{ earliest_start_date }} through the remaining duration of the crop's growing period.
-- Chronologically sequence all remaining phases until Harvest.
+- Chronologically order all remaining phases and tasks until Harvest strictly by start and end dates.
 - Sowing has already been completed; do NOT generate land preparation or sowing tasks.
 - Schema:
 {{ cultivation_calendar_schema_json }}

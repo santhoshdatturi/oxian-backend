@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 
 from .agricultural_input_plan import (
     AgriculturalInputInvariantFields,
@@ -40,6 +40,19 @@ class AgriculturalInputRecommendation(
     growth stage, pest attack, disease, or management need.
     """
 
+    selected_strategy_rank: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("selected_strategy_rank", "selectedStrategyRank"),
+    )
+    adopted_plan_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("adopted_plan_id", "adoptedPlanId"),
+    )
+    adopted_task_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("adopted_task_id", "adoptedTaskId"),
+    )
+
 
 TranslatedAgriculturalInputRecommendationFields = TranslatedFields[
     AgriculturalInputRecommendationTranslatableFields
@@ -52,3 +65,7 @@ class AgriculturalInputRecommendationDocument(
     """
     MongoDB document model for storing agricultural input recommendations with both invariant and translatable fields.
     """
+
+    selected_strategy_rank: Optional[int] = None
+    adopted_plan_id: Optional[str] = None
+    adopted_task_id: Optional[str] = None
