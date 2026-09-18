@@ -14,6 +14,7 @@ def _to_agricultural_input_recommendation(
     document: dict,
     language: PersistenceLanguage,
 ) -> AgriculturalInputRecommendation:
+    """Build a recommendation, falling back to English text when needed."""
     translatable_fields = (
         document.get(language.value)
         or document.get(PersistenceLanguage.ENGLISH.value)
@@ -102,6 +103,11 @@ async def get_by_id(
     language: PersistenceLanguage,
     crop_id: str | None = None,
 ) -> AgriculturalInputRecommendation | None:
+    """Return a localized recommendation matching the ID and optional crop.
+
+    Returns ``None`` when no document matches. English text is used when the
+    requested translation is unavailable.
+    """
     query: dict[str, str] = {"_id": recommendation_id}
     if crop_id:
         query["cultivation_crop_id"] = crop_id
@@ -151,6 +157,7 @@ async def list_by_crop(
     language: PersistenceLanguage,
     limit: int = 100,
 ) -> list[AgriculturalInputRecommendation]:
+    """List the crop's newest recommendations with English text as a fallback."""
     projection = {
         "_id": 1,
         "cultivation_crop_id": 1,

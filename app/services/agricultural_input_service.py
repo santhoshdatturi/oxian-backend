@@ -33,6 +33,11 @@ from app.services import cultivation_crop_service, cultivation_task_service
 async def list_agricultural_input_recommendations(
     *, crop_id: str, user_id: str, limit: int = 100
 ) -> list[AgriculturalInputRecommendation]:
+    """List recommendations enriched with adopted treatment-plan details.
+
+    Returns an empty list when the user cannot access the crop. An adopted plan
+    without its original recommendation is represented as a synthetic recommendation.
+    """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
     ):
@@ -110,10 +115,15 @@ async def select_remedy_strategy(
     application_date: Optional[date] = None,
     notes: Optional[str] = None,
 ) -> tuple[AgriculturalInputPlan, CultivationTask]:
-    """
-    Persists the selected treatment strategy as an AgriculturalInputPlan and
-    automatically injects an actionable task into the crop's cultivation calendar
-    with investment tracking.
+    """Adopt a treatment strategy and schedule it as a cultivation task.
+
+    The plan and task are persisted before best-effort updates to the investment
+    breakdown and source recommendation metadata.
+
+    Raises:
+        AgriculturalInputNotFound: The recommendation is inaccessible or its saved
+            plan or task cannot be loaded.
+        ValidationFailed: The requested strategy rank is not in the recommendation.
     """
     crop_id = await agricultural_input_recommendation_repository.get_crop_id_by_id(
         recommendation_id
@@ -305,4 +315,3 @@ async def _create_agricultural_input_recommendation(
     document: AgriculturalInputRecommendationDocument,
 ) -> AgriculturalInputRecommendationDocument:
     return await agricultural_input_recommendation_repository.create(document)
-

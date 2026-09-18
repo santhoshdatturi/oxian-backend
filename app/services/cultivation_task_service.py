@@ -223,6 +223,11 @@ async def _create_cultivation_task(
 async def preview_reschedule(
     *, crop_id: str, user_id: str
 ) -> ReschedulePreviewResponse:
+    """Preview moving affected overdue work to today and shifting later pending tasks.
+
+    Raises:
+        CultivationCropNotFound: The user cannot access the crop.
+    """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
     ):
@@ -335,4 +340,3 @@ async def check_all_overdue_tasks() -> dict[str, Any]:
         "affected_crops_count": len(crop_ids),
         "affected_crop_ids": crop_ids,
     }
-

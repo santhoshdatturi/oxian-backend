@@ -127,6 +127,11 @@ async def _run_job(
     future: asyncio.Future[CropPlan],
     is_next_stage: bool = False,
 ) -> None:
+    """Run a crop-planning agent job and resolve its result future.
+
+    The job tracks process state and persists generated planning artifacts. Failures
+    are recorded on the process and delivered through the future.
+    """
     try:
         process_task = asyncio.current_task()
         if process_task is None:
