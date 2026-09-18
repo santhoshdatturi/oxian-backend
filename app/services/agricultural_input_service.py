@@ -162,9 +162,6 @@ async def select_remedy_strategy(
     plan_doc = await agricultural_input_plan_repository.create(plan_doc)
 
     # 2. Automatically inject a CultivationTask into the calendar
-    existing_tasks = await cultivation_task_service._list_cultivation_tasks(crop_id=crop_id)
-    next_seq = max([t.sequence_number for t in existing_tasks], default=0) + 1
-
     input_names_eng = ", ".join(inp.input_name for inp in strat_eng.inputs)
     input_names_user = ", ".join(inp.input_name for inp in strat_user.inputs)
 
@@ -184,7 +181,6 @@ async def select_remedy_strategy(
 
     task_doc = CultivationTaskDocument(
         crop_id=crop_id,
-        sequence_number=next_seq,
         planned_start_date=app_date,
         planned_end_date=app_date,
         status=TaskState.PENDING,

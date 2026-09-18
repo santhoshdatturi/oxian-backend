@@ -82,7 +82,6 @@ async def get_by_id(
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -128,7 +127,6 @@ async def list_by_crop(
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -140,7 +138,7 @@ async def list_by_crop(
     cursor = (
         get_cultivation_tasks_collection()
         .find({"crop_id": crop_id}, projection)
-        .sort([("planned_start_date", 1), ("sequence_number", 1)])
+        .sort("planned_start_date", 1)
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]
@@ -247,18 +245,8 @@ async def add_custom_task(
     task_input: CreateCultivationTaskInput,
     language: PersistenceLanguage,
 ) -> CultivationTask:
-    last_task = (
-        await get_cultivation_tasks_collection()
-        .find({"crop_id": crop_id}, {"sequence_number": 1})
-        .sort("sequence_number", -1)
-        .limit(1)
-        .to_list(1)
-    )
-    next_seq = (last_task[0]["sequence_number"] + 1) if last_task else 1
-
     task_doc = CultivationTaskDocument(
         crop_id=crop_id,
-        sequence_number=next_seq,
         planned_start_date=task_input.planned_start_date,
         planned_end_date=task_input.planned_end_date,
         status=TaskState.PENDING,
@@ -305,7 +293,6 @@ async def list_by_crops(
     projection = {
         "_id": 1,
         "crop_id": 1,
-        "sequence_number": 1,
         "planned_start_date": 1,
         "planned_end_date": 1,
         "status": 1,
@@ -317,7 +304,7 @@ async def list_by_crops(
     cursor = (
         get_cultivation_tasks_collection()
         .find(query, projection)
-        .sort([("planned_start_date", 1), ("sequence_number", 1)])
+        .sort("planned_start_date", 1)
         .limit(limit)
     )
     return [_to_cultivation_task(document, language) async for document in cursor]
