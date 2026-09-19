@@ -232,32 +232,86 @@ async def _run_job(
                 if isinstance(raw_data, dict):
                     investments = raw_data.get("investments")
                     profitability = raw_data.get("profitability")
-                    if isinstance(investments, list) and isinstance(profitability, dict) and investments:
+                    if (
+                        isinstance(investments, list)
+                        and isinstance(profitability, dict)
+                        and investments
+                    ):
                         # Extract primary currency from investments
-                        first_inv_cost = investments[0].get("estimated_cost") if isinstance(investments[0], dict) else None
-                        primary_currency = first_inv_cost.get("currency") if isinstance(first_inv_cost, dict) else None
+                        first_inv_cost = (
+                            investments[0].get("estimated_cost")
+                            if isinstance(investments[0], dict)
+                            else None
+                        )
+                        primary_currency = (
+                            first_inv_cost.get("currency")
+                            if isinstance(first_inv_cost, dict)
+                            else None
+                        )
 
                         # Auto-reconcile minor LLM arithmetic discrepancies in total_cost and net_profit
                         total_item_cost = sum(
                             float(item.get("estimated_cost", {}).get("amount", 0.0))
                             for item in investments
-                            if isinstance(item, dict) and isinstance(item.get("estimated_cost"), dict)
+                            if isinstance(item, dict)
+                            and isinstance(item.get("estimated_cost"), dict)
                         )
                         if total_item_cost > 0:
-                            if "estimated_total_cost" in profitability and isinstance(profitability["estimated_total_cost"], dict):
-                                profitability["estimated_total_cost"]["amount"] = total_item_cost
-                                if primary_currency and profitability["estimated_total_cost"].get("currency") != primary_currency:
-                                    profitability["estimated_total_cost"]["currency"] = primary_currency
+                            if "estimated_total_cost" in profitability and isinstance(
+                                profitability["estimated_total_cost"], dict
+                            ):
+                                profitability["estimated_total_cost"]["amount"] = (
+                                    total_item_cost
+                                )
+                                if (
+                                    primary_currency
+                                    and profitability["estimated_total_cost"].get(
+                                        "currency"
+                                    )
+                                    != primary_currency
+                                ):
+                                    profitability["estimated_total_cost"][
+                                        "currency"
+                                    ] = primary_currency
 
-                            if "estimated_gross_income" in profitability and isinstance(profitability["estimated_gross_income"], dict):
-                                gross = float(profitability["estimated_gross_income"].get("amount", 0.0))
-                                if primary_currency and profitability["estimated_gross_income"].get("currency") != primary_currency:
-                                    profitability["estimated_gross_income"]["currency"] = primary_currency
+                            if "estimated_gross_income" in profitability and isinstance(
+                                profitability["estimated_gross_income"], dict
+                            ):
+                                gross = float(
+                                    profitability["estimated_gross_income"].get(
+                                        "amount", 0.0
+                                    )
+                                )
+                                if (
+                                    primary_currency
+                                    and profitability["estimated_gross_income"].get(
+                                        "currency"
+                                    )
+                                    != primary_currency
+                                ):
+                                    profitability["estimated_gross_income"][
+                                        "currency"
+                                    ] = primary_currency
 
-                                if "estimated_net_profit" in profitability and isinstance(profitability["estimated_net_profit"], dict):
-                                    profitability["estimated_net_profit"]["amount"] = gross - total_item_cost
-                                    if primary_currency and profitability["estimated_net_profit"].get("currency") != primary_currency:
-                                        profitability["estimated_net_profit"]["currency"] = primary_currency
+                                if (
+                                    "estimated_net_profit" in profitability
+                                    and isinstance(
+                                        profitability["estimated_net_profit"], dict
+                                    )
+                                ):
+                                    profitability["estimated_net_profit"]["amount"] = (
+                                        gross - total_item_cost
+                                    )
+                                    if (
+                                        primary_currency
+                                        and profitability["estimated_net_profit"].get(
+                                            "currency"
+                                        )
+                                        != primary_currency
+                                    ):
+                                        profitability["estimated_net_profit"][
+                                            "currency"
+                                        ] = primary_currency
 
                 english_fields = InvestmentBreakdownTranslatableFields.model_validate(
                     raw_data
@@ -358,9 +412,6 @@ async def _run_job(
                         priority = Priority.MEDIUM
                         skippable = False
 
-                    task_english.agricultural_input_recommendation_id = input_id
-                    task_user_lang.agricultural_input_recommendation_id = input_id
-
                     task_doc = CultivationTaskDocument(
                         crop_id=crop_id,
                         planned_start_date=start_date,
@@ -368,6 +419,7 @@ async def _run_job(
                         status=TaskState.PENDING,
                         priority=priority,
                         skippable=skippable,
+                        agricultural_input_recommendation_id=input_id,
                         english=task_english,
                         user_language=task_user_lang,
                     )

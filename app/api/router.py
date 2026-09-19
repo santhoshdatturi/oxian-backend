@@ -28,4 +28,3 @@ api_router.include_router(cultivation_task_router)
 api_router.include_router(crop_observation_router)
 api_router.include_router(agricultural_input_router)
 api_router.include_router(notification_router)
-

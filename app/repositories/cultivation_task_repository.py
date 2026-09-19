@@ -89,6 +89,8 @@ async def get_by_id(
         "priority": 1,
         "skippable": 1,
         "completed_at": 1,
+        "agricultural_input_recommendation_id": 1,
+        "agricultural_input_plan_id": 1,
         language.value: 1,
     }
     document = await get_cultivation_tasks_collection().find_one(query, projection)
@@ -135,6 +137,8 @@ async def list_by_crop(
         "priority": 1,
         "skippable": 1,
         "completed_at": 1,
+        "agricultural_input_recommendation_id": 1,
+        "agricultural_input_plan_id": 1,
         language.value: 1,
     }
     cursor = (

@@ -11,6 +11,7 @@ from app.core.errors import (
     IntercroppingCultivationNotFound,
     InvestmentBreakdownNotFound,
 )
+from app.schemas.agricultural_input_plan import AgriculturalInputPlan
 from app.schemas.agricultural_input_recommendation import (
     AgriculturalInputRecommendation,
 )
@@ -538,6 +539,49 @@ async def list_agricultural_inputs_for_farm(
     return await agricultural_input_service.list_agricultural_input_recommendations(
         crop_id=crop_id, user_id=user_id, limit=limit
     )
+
+
+@router.get(
+    "/farms/{farm_id}/{crop_id}/agricultural-input-plans",
+    response_model=list[AgriculturalInputPlan],
+)
+async def list_agricultural_input_plans_for_farm(
+    farm_id: str,
+    crop_id: str,
+    limit: int = Query(default=100, ge=1, le=100),
+    user_id: str = Depends(get_current_user_id),
+) -> list[AgriculturalInputPlan]:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    return await agricultural_input_service.list_agricultural_input_plans(
+        crop_id=crop_id, user_id=user_id, limit=limit
+    )
+
+
+@router.get(
+    "/farms/{farm_id}/{crop_id}/agricultural-input-plans/{plan_id}",
+    response_model=AgriculturalInputPlan,
+)
+async def get_agricultural_input_plan_for_farm(
+    farm_id: str,
+    crop_id: str,
+    plan_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> AgriculturalInputPlan:
+    crop = await cultivation_crop_service.get_cultivation_crop(
+        user_id=user_id, farm_id=farm_id, crop_id=crop_id
+    )
+    if crop is None:
+        raise CultivationCropNotFound(crop_id)
+    plan = await agricultural_input_service.get_agricultural_input_plan(
+        plan_id=plan_id, user_id=user_id
+    )
+    if plan is None:
+        raise AgriculturalInputNotFound(plan_id)
+    return plan
 
 
 @router.get(

@@ -116,4 +116,3 @@ async def confirm_crop_tasks_reschedule(
         user_id=user_id,
         task_ids=payload.task_ids,
     )
-

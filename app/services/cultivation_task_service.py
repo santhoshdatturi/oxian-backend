@@ -258,9 +258,15 @@ async def preview_reschedule(
 
     shifts: list[TaskShiftPreview] = []
     for task in pending_tasks:
-        if task.planned_end_date < earliest_overdue.planned_start_date and task.planned_end_date >= today:
+        if (
+            task.planned_end_date < earliest_overdue.planned_start_date
+            and task.planned_end_date >= today
+        ):
             continue
-        if task.planned_end_date < earliest_overdue.planned_end_date and task.planned_end_date < today:
+        if (
+            task.planned_end_date < earliest_overdue.planned_end_date
+            and task.planned_end_date < today
+        ):
             # Also overdue, will be rescheduled
             pass
         elif task.planned_end_date < earliest_overdue.planned_start_date:

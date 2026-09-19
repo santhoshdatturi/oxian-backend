@@ -14,10 +14,13 @@ router = APIRouter(tags=["Agricultural Inputs & Remedies"])
 
 class SelectStrategyRequest(BaseModel):
     strategy_rank: int = Field(
-        ..., ge=1, description="Rank of the selected treatment strategy (1 for Organic, 2 for Chemical, etc.)."
+        ...,
+        ge=1,
+        description="Rank of the selected treatment strategy (1 for Organic, 2 for Chemical, etc.).",
     )
     application_date: Optional[date] = Field(
-        default=None, description="Date on which the farmer plans to execute the strategy."
+        default=None,
+        description="Date on which the farmer plans to execute the strategy.",
     )
     notes: Optional[str] = Field(
         default=None, description="Execution notes or reminders."

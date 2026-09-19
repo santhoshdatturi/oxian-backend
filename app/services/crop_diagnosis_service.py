@@ -179,8 +179,10 @@ async def diagnose_crop_observation(
             english=rec_english,
             user_language=rec_user_lang,
         )
-        rec_doc = await agricultural_input_service._create_agricultural_input_recommendation(
-            rec_doc
+        rec_doc = (
+            await agricultural_input_service._create_agricultural_input_recommendation(
+                rec_doc
+            )
         )
         rec_id = rec_doc.id
 

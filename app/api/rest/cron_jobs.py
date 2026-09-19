@@ -24,4 +24,3 @@ async def check_overdue_tasks():
 
     result = await cultivation_task_service.check_all_overdue_tasks()
     return {"success": True, "data": result}
-

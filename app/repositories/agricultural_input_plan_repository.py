@@ -21,7 +21,9 @@ def _to_agricultural_input_plan(
         value = document.get(key, translatable_fields.get(key))
         if value is not None:
             invariant_data[key] = value
-    invariant_fields = AgriculturalInputPlanInvariantFields.model_validate(invariant_data)
+    invariant_fields = AgriculturalInputPlanInvariantFields.model_validate(
+        invariant_data
+    )
     return AgriculturalInputPlan.model_validate(
         {
             **invariant_fields.model_dump(mode="json"),

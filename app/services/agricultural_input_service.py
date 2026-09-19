@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional
 
@@ -29,14 +30,15 @@ from app.schemas.generic_types import Currency, MoneyValue, PersistenceLanguage
 from app.schemas.investment_breakdown import InvestmentItem
 from app.services import cultivation_crop_service, cultivation_task_service
 
+logger = logging.getLogger(__name__)
+
 
 async def list_agricultural_input_recommendations(
     *, crop_id: str, user_id: str, limit: int = 100
 ) -> list[AgriculturalInputRecommendation]:
     """Return accessible recommendations enriched with adopted plan details.
 
-    Adopted plans whose original recommendation is unavailable are represented as
-    synthetic recommendations. Returns an empty list when the user lacks crop access.
+    Returns an empty list when the user lacks crop access.
     """
     if not await cultivation_crop_service.has_crop_access(
         user_id=user_id, crop_id=crop_id
@@ -52,27 +54,13 @@ async def list_agricultural_input_recommendations(
         language=PersistenceLanguage.USER_LANGUAGE,
         limit=limit,
     )
-    existing_rec_ids = {r.id for r in recs}
     for plan in plans:
-        matched = False
         for rec in recs:
             if rec.id == plan.recommendation_id:
-                matched = True
                 if rec.selected_strategy_rank is None:
                     rec.selected_strategy_rank = plan.selected_strategy.rank
                     rec.adopted_plan_id = plan.id
-        if not matched and plan.id not in existing_rec_ids:
-            synth_rec = AgriculturalInputRecommendation(
-                id=plan.id,
-                cultivation_crop_id=plan.cultivation_crop_id,
-                title="Adopted Remedy Strategy",
-                problem=plan.notes or "Scheduled treatment plan",
-                strategies=[plan.selected_strategy],
-                selected_strategy_rank=plan.selected_strategy.rank,
-                adopted_plan_id=plan.id,
-            )
-            recs.append(synth_rec)
-    return recs
+    return recs[:limit]
 
 
 async def get_agricultural_input_recommendation(
@@ -164,10 +152,14 @@ async def select_remedy_strategy(
         recommendation_id=recommendation_id,
         application_date=app_date,
         english=AgriculturalInputPlanTranslatableFields(
+            title=rec_eng.title,
+            problem=rec_eng.problem,
             selected_strategy=strat_eng,
             notes=notes,
         ),
         user_language=AgriculturalInputPlanTranslatableFields(
+            title=rec_user.title,
+            problem=rec_user.problem,
             selected_strategy=strat_user,
             notes=notes,
         ),
@@ -186,10 +178,10 @@ async def select_remedy_strategy(
     )
 
     steps_eng = "\n".join(
-        f"{i+1}. {step}" for i, step in enumerate(strat_eng.application_steps)
+        f"{i + 1}. {step}" for i, step in enumerate(strat_eng.application_steps)
     )
     steps_user = "\n".join(
-        f"{i+1}. {step}" for i, step in enumerate(strat_user.application_steps)
+        f"{i + 1}. {step}" for i, step in enumerate(strat_user.application_steps)
     )
 
     task_doc = CultivationTaskDocument(
@@ -199,27 +191,29 @@ async def select_remedy_strategy(
         status=TaskState.PENDING,
         priority=Priority.HIGH,
         skippable=False,
+        agricultural_input_recommendation_id=recommendation_id,
+        agricultural_input_plan_id=plan_doc.id,
         english=CultivationTaskTranslatableFields(
             task_name=task_name_eng,
             description=f"{strat_eng.explanation}\n\nApplication Steps:\n{steps_eng}\n\nExpected Result: {strat_eng.expected_result}",
-            agricultural_input_recommendation_id=recommendation_id,
             investments=[
                 Investment(
                     category=InvestmentCategory.AGRICULTURAL_INPUT,
                     reason=task_name_eng,
                     estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
+                    agricultural_input_plan_id=plan_doc.id,
                 )
             ],
         ),
         user_language=CultivationTaskTranslatableFields(
             task_name=task_name_user,
             description=f"{strat_user.explanation}\n\nApplication Steps:\n{steps_user}\n\nExpected Result: {strat_user.expected_result}",
-            agricultural_input_recommendation_id=recommendation_id,
             investments=[
                 Investment(
                     category=InvestmentCategory.AGRICULTURAL_INPUT,
                     reason=task_name_user,
                     estimated_cost=MoneyValue(amount=0.0, currency=Currency.INR),
+                    agricultural_input_plan_id=plan_doc.id,
                 )
             ],
         ),
@@ -251,8 +245,8 @@ async def select_remedy_strategy(
             breakdown.english.investments.append(new_inv_eng)
             breakdown.user_language.investments.append(new_inv_user)
             await investment_breakdown_repository.save(breakdown)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to update investment breakdown: {e}")
 
     # 4. Update AgriculturalInputRecommendationDocument with adoption details
     try:
@@ -264,8 +258,8 @@ async def select_remedy_strategy(
             rec_doc.adopted_plan_id = plan_doc.id
             rec_doc.adopted_task_id = task_doc.id
             await agricultural_input_recommendation_repository.save(rec_doc)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to update recommendation document: {e}")
 
     user_task = await cultivation_task_service.get_cultivation_task(
         task_id=task_doc.id,
@@ -292,6 +286,22 @@ async def list_agricultural_input_plans(
         language=PersistenceLanguage.USER_LANGUAGE,
         limit=limit,
     )
+
+
+async def get_agricultural_input_plan(
+    *, plan_id: str, user_id: str
+) -> AgriculturalInputPlan | None:
+    plan = await agricultural_input_plan_repository.get_by_id(
+        plan_id=plan_id,
+        language=PersistenceLanguage.USER_LANGUAGE,
+    )
+    if not plan:
+        return None
+    if not await cultivation_crop_service.has_crop_access(
+        user_id=user_id, crop_id=plan.cultivation_crop_id
+    ):
+        return None
+    return plan
 
 
 async def _list_agricultural_input_recommendations(

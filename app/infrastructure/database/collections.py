@@ -77,4 +77,3 @@ def get_crop_observations_collection() -> AsyncIOMotorCollection:
 
 def get_agricultural_input_plans_collection() -> AsyncIOMotorCollection:
     return _get_collection("agricultural_input_plans")
-

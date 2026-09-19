@@ -130,7 +130,7 @@ class AgriculturalInputPlanInvariantFields(AgriculturalInputInvariantFields):
     )
 
 
-class AgriculturalInputPlanTranslatableFields(BaseModel):
+class AgriculturalInputPlanTranslatableFields(AgriculturalInputTranslatableFields):
     """
     Fields for representing the core attributes of an agricultural input plan, which are translatable.
     """

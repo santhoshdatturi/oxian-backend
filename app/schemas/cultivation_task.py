@@ -129,6 +129,14 @@ class CultivationTaskInvariantFields(BaseModel):
     completed_at: Optional[datetime] = Field(
         default=None, description="Timestamp when the task was marked completed."
     )
+    agricultural_input_recommendation_id: Optional[str] = Field(
+        default=None,
+        description="UUID of the AgriculturalInputRecommendation this task is based on.",
+    )
+    agricultural_input_plan_id: Optional[str] = Field(
+        default=None,
+        description="UUID of the AgriculturalInputPlan this task is based on.",
+    )
 
     @model_validator(mode="after")
     def validate_status_state(self):
@@ -166,10 +174,6 @@ class CultivationTaskTranslatableFields(BaseModel):
             "agricultural_input_plan_id are tied to that plan; investments without one "
             "are general task-level costs."
         ),
-    )
-    agricultural_input_recommendation_id: Optional[str] = Field(
-        None,
-        description="UUID of the AgriculturalInputRecommendation this task is based on.",
     )
 
 
@@ -299,4 +303,3 @@ class ConfirmRescheduleRequest(BaseModel):
         default=None,
         description="Optional list of specific task IDs to reschedule. If omitted, all proposed tasks are rescheduled.",
     )
-
